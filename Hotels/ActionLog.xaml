@@ -1,0 +1,19 @@
+﻿<Window x:Class="Hotels.ActionLog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ActionLog" Height="300" Width="300">
+    <Grid>
+        <ListView Name="Tasks">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <WrapPanel>
+                        <TextBlock Text="{Binding Path=Description}" />
+                        <TextBlock Text="{Binding Path=Status}" />
+                        <TextBlock Text="{Binding Path=ExecutionTime}" />
+                        <TextBlock Text="ms" />
+                    </WrapPanel>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Window>
