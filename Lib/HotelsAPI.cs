@@ -94,11 +94,6 @@ namespace Lib
         private ToggleManager m_toggleManager;
         private HttpClient m_hotelsClient;
         private HttpClient m_roomsClient;
-        private JsonSerializerSettings jsonSettings = new JsonSerializerSettings()
-        {
-            MissingMemberHandling = MissingMemberHandling.Ignore,
-            Error = ErrorHandler
-        };
 
         private JsonSerializer serializer = new JsonSerializer();
         private DataContractJsonSerializer roomSerializer = new DataContractJsonSerializer(typeof(RoomDTO[]));
@@ -107,20 +102,10 @@ namespace Lib
         {
             m_toggleManager = toggleManager;
 
-            m_hotelsClient = MakeRestClient("http://hotels-world.fanta.wixpress.com/api/");
-            m_roomsClient = MakeRestClient("http://hotels.fanta.wixpress.com/api/");
+            m_hotelsClient = Utils.MakeRestClient("http://hotels-world.fanta.wixpress.com/api/");
+            m_roomsClient = Utils.MakeRestClient("http://hotels.fanta.wixpress.com/api/");
 
             //serializer.Deserialize()
-        }
-
-        private HttpClient MakeRestClient(string url)
-        {
-            var client = new HttpClient();
-            client.BaseAddress = new Uri(url);
-            client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            return client;
         }
 
         public List<Hotel> GetHotels()
@@ -143,14 +128,15 @@ namespace Lib
         {
             return m_toggleManager.AddLatency(() =>
                 new List<Hotel>() {
-                    new Hotel("hotel-1", "Hotel 1", "Ct8l4ZzadI7YwqtHvun8xB482Nl81FzsDeOGThl2Wtc.eyJpbnN0YW5jZUlkIjoiMTM4ZTAwZWEtMzI4NC04ODY5LWViYmMtMDMxNGQ4ODU0NTQ5Iiwic2lnbkRhdGUiOiIyMDE0LTExLTI1VDA2OjM4OjAxLjI1MloiLCJ1aWQiOiJmZGUwMTUxMi04ZWVkLTRmNDItODc4Zi1iODkxYTdhMWJlNjYiLCJwZXJtaXNzaW9ucyI6Ik9XTkVSIiwiaXBBbmRQb3J0IjoiODguMTE5LjE1MC4xOTYvMzQ4MDEiLCJ2ZW5kb3JQcm9kdWN0SWQiOm51bGwsImRlbW9Nb2RlIjpmYWxzZX0"),
+                    new Hotel("hotel-1", "Hotel 1",
+                        "Ct8l4ZzadI7YwqtHvun8xB482Nl81FzsDeOGThl2Wtc.eyJpbnN0YW5jZUlkIjoiMTM4ZTAwZWEtMzI4NC04ODY5LWViYmMtMDMxNGQ4ODU0NTQ5Iiwic2lnbkRhdGUiOiIyMDE0LTExLTI1VDA2OjM4OjAxLjI1MloiLCJ1aWQiOiJmZGUwMTUxMi04ZWVkLTRmNDItODc4Zi1iODkxYTdhMWJlNjYiLCJwZXJtaXNzaW9ucyI6Ik9XTkVSIiwiaXBBbmRQb3J0IjoiODguMTE5LjE1MC4xOTYvMzQ4MDEiLCJ2ZW5kb3JQcm9kdWN0SWQiOm51bGwsImRlbW9Nb2RlIjpmYWxzZX0"),
                     //new Hotel("hotel-2", "Hotel 2", null)
                 });
         }
         
         public List<Room> GetRooms(Hotel hotel)
         {
-            return UnwrapResult(GetRoomsAsync(hotel));
+            return Utils.UnwrapResult(GetRoomsAsync(hotel));
         }
         
         public async Task<List<Room>> GetRoomsAsync(Hotel hotel)
@@ -164,7 +150,7 @@ namespace Lib
                 return dtos.Select(dto =>
                     new Room(dto.Name,
                              dto.Description,
-                             string.Format("{0} {1}", dto.Price.Currency, dto.Price.Amount),
+                             string.Format("{1}{0}", dto.Price.Currency, dto.Price.Amount),
                              FormatImageUrl(dto.ImageUrl))).ToList();
             }
             else
@@ -180,32 +166,12 @@ namespace Lib
                 });
         }
 
-        private A ReadJson<A>(string source)
-        {
-            return JsonConvert.DeserializeObject<A>(source, jsonSettings);
-            //var reader = new JsonReader();
-            //return serializer.Deserialize<A>(source);
-        }
-        
-        private static void ErrorHandler(object x, ErrorEventArgs error)
-        {
-            Console.WriteLine(error.ErrorContext.Error);
-            error.ErrorContext.Handled = true;
-        }
-
         private string FormatImageUrl(string relativePath)
         {
             if (relativePath == null)
                 return "http://static.wix.com/media/fde015_5727dda09b554a2881fdd3e7dcf522d0.png_650_srz_240_170_75_22_0.5_1.2_75_png_650_srz";
             else
                 return string.Format("{0}{1}", "http://static.fanta.wixpress.com/media/", relativePath);
-        }
-
-        private A UnwrapResult<A>(Task<A> task)
-        {
-            task.Wait();
-
-            return task.Result;
         }
     }
 }

@@ -62,6 +62,8 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="EventsAPITest.cs" />
+    <Compile Include="WeatherAPITest.cs" />
     <Compile Include="HotelsAPITest.cs" />
     <Compile Include="LocationAPITest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

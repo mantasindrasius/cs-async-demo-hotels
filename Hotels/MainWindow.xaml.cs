@@ -69,8 +69,8 @@ namespace Hotels
             toggler = new Toggler(m_toggleManager);
             actionLog = new ActionLog(m_tasks);
 
-            toggler.Show();
-            actionLog.Show();
+            //toggler.Show();
+            //actionLog.Show();
                         
             m_taskManager = new TaskManager(m_toggleManager, m_tasks);
             m_searchManager = new SearchManager(m_taskManager, m_toggleManager, m_rooms, m_weather, m_events);
@@ -148,17 +148,7 @@ namespace Hotels
             }
         }
 
-        private async void Button_Click(object sender, RoutedEventArgs e)
-        {
-            var searchPeforming = await m_searchManager.Search();
-
-            if (!searchPeforming)
-            {
-                MessageBox.Show("Please enter criteria");
-            }
-        }
-
-        private Location Location
+        /*private Location Location
         {
             get { return (Location)CBox.SelectedItem; }
         }
@@ -175,20 +165,28 @@ namespace Hotels
 
         private bool CanSearch
         {
-            get
+            get { return Location != null && CheckInDate.HasValue && CheckOutDate.HasValue; }
+        }*/
+
+        private async void SearchSync_Click(object sender, RoutedEventArgs e)
+        {
+            var started = DateTime.Now;
+
+            await Task.Run(() =>
             {
-                return Location != null && CheckInDate.HasValue && CheckOutDate.HasValue;
-            }
+                ShowWeather();
+                ShowEvents();
+
+                var hotels = QueryHotels();
+
+                ShowRooms(hotels);
+            });
+
+            ReportTimeTaken(DateTime.Now.Subtract(started).TotalMilliseconds);
         }
 
         private async void Search_Click(object sender, RoutedEventArgs e)
         {
-            if (!CanSearch)
-            {
-                MessageBox.Show("Please enter criteria");
-                return;
-            }
-
             var started = DateTime.Now;
 	
 	        var tasks = new Task[] {
@@ -210,6 +208,8 @@ namespace Hotels
 
         private void ShowWeather()
         {
+            m_weather.Clear();
+
             foreach (var weatherRecord in m_weatherApi.GetForecast())
             {
                 m_weather.Add(weatherRecord);
@@ -218,6 +218,8 @@ namespace Hotels
 
         private void ShowEvents()
         {
+            m_events.Clear();
+
             foreach (var anEvent in m_eventsApi.GetEvents())
             {
                 m_events.Add(anEvent);
@@ -227,13 +229,12 @@ namespace Hotels
         private List<Hotel> QueryHotels()
         {
             return m_hotelsApi.GetHotels();
-            //task.Wait();
-
-            //return task.Result;
         }
 
         private void ShowRooms(List<Hotel> hotels)
         {
+            m_rooms.Clear();
+
             Task.WaitAll(hotels.Select(h => ShowRooms(h)).ToArray());
         }
         
