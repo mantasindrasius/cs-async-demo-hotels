@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -25,8 +26,14 @@ namespace Hotels
     /// </summary>
     public partial class MainWindow : Window
     {
-        private readonly LocationAPI m_location = new LocationAPI();
-        private readonly Toggler toggler = new Toggler(new ToggleManager());
+        private readonly ToggleManager m_toggleManager = new ToggleManager();
+
+        private readonly LocationAPI m_location;
+        private readonly HotelsAPI m_hotelsApi;
+        private readonly WeatherAPI m_weatherApi;
+        private readonly EventsAPI m_eventsApi;
+
+        private readonly Toggler toggler;
         private readonly ActionLog actionLog;
 
         private readonly ObservableCollection<HotelRoom> m_rooms = new ObservableCollection<HotelRoom>();
@@ -54,14 +61,20 @@ namespace Hotels
             Weather.ItemsSource = m_weather;
             Events.ItemsSource = m_events;
 
+            m_location = new LocationAPI(m_toggleManager);
+            m_hotelsApi = new HotelsAPI(m_toggleManager);
+            m_weatherApi = new WeatherAPI();
+            m_eventsApi = new EventsAPI();
+
+            toggler = new Toggler(m_toggleManager);
             actionLog = new ActionLog(m_tasks);
 
             toggler.Show();
             actionLog.Show();
                         
-            m_taskManager = new TaskManager(m_tasks);
-            m_searchManager = new SearchManager(m_taskManager, m_rooms, m_weather, m_events);
-            m_actionLogger = new ActionLogger(m_taskManager);
+            m_taskManager = new TaskManager(m_toggleManager, m_tasks);
+            m_searchManager = new SearchManager(m_taskManager, m_toggleManager, m_rooms, m_weather, m_events);
+            m_actionLogger = new ActionLogger(m_taskManager, m_toggleManager);
 
             m_searchManager.StartingSearch += m_searchManager_StartingSearch;
             m_searchManager.SearchComplete += m_searchManager_SearchComplete;
@@ -80,7 +93,7 @@ namespace Hotels
             m_actionLogger.Log(string.Format("Mouse clicked at {0}, {1}", Convert.ToInt32(pos.X), Convert.ToInt32(pos.Y)));
         }
 
-        void m_searchManager_SearchComplete(object sender, SearchManager.SearchCompleteEventArgs e)
+        void m_searchManager_SearchComplete(object sender, SearchCompleteEventArgs e)
         {
             Dispatcher.Invoke(() =>
             {
@@ -99,11 +112,13 @@ namespace Hotels
             actionLog.Close();
         }
 
-        private void CBox_KeyUp(object sender, KeyEventArgs e)
+        private async void CBox_KeyUp(object sender, KeyEventArgs e)
         {
             var combo = (ComboBox)sender;
             var text = combo.Text;
-            var matches = m_location.GetAddressMatches(text);
+            var addressTask = Task.Run(() => m_location.GetAddressMatches(text));
+            
+            var matches = await addressTask;
 
             combo.ItemsSource = matches;
 
@@ -132,7 +147,106 @@ namespace Hotels
                     break;
             }
         }
-    }
 
+        private async void Button_Click(object sender, RoutedEventArgs e)
+        {
+            var searchPeforming = await m_searchManager.Search();
+
+            if (!searchPeforming)
+            {
+                MessageBox.Show("Please enter criteria");
+            }
+        }
+
+        private Location Location
+        {
+            get { return (Location)CBox.SelectedItem; }
+        }
+
+        private DateTime? CheckInDate
+        {
+            get { return CheckIn.SelectedDate; }
+        }
+
+        private DateTime? CheckOutDate
+        {
+            get { return CheckOut.SelectedDate; }
+        }
+
+        private bool CanSearch
+        {
+            get
+            {
+                return Location != null && CheckInDate.HasValue && CheckOutDate.HasValue;
+            }
+        }
+
+        private async void Search_Click(object sender, RoutedEventArgs e)
+        {
+            if (!CanSearch)
+            {
+                MessageBox.Show("Please enter criteria");
+                return;
+            }
+
+            var started = DateTime.Now;
+	
+	        var tasks = new Task[] {
+		        Task.Run(() => ShowWeather()),
+		        Task.Run(() => ShowEvents()),
+		        Task.Run(() => QueryHotels())
+		          .ContinueWith(hotelsTask => ShowRooms(hotelsTask.Result)),
+	        };
+
+            await Task.WhenAll(tasks);
+
+            ReportTimeTaken(DateTime.Now.Subtract(started).TotalMilliseconds);
+        }
+
+        private void ReportTimeTaken(double millis)
+        {
+            ExecutionTime.Text = millis + "ms";
+        }
+
+        private void ShowWeather()
+        {
+            foreach (var weatherRecord in m_weatherApi.GetForecast())
+            {
+                m_weather.Add(weatherRecord);
+            }
+        }
+
+        private void ShowEvents()
+        {
+            foreach (var anEvent in m_eventsApi.GetEvents())
+            {
+                m_events.Add(anEvent);
+            }
+        }
+
+        private List<Hotel> QueryHotels()
+        {
+            return m_hotelsApi.GetHotels();
+            //task.Wait();
+
+            //return task.Result;
+        }
+
+        private void ShowRooms(List<Hotel> hotels)
+        {
+            Task.WaitAll(hotels.Select(h => ShowRooms(h)).ToArray());
+        }
+        
+        private async Task ShowRooms(Hotel hotel)
+        {
+            var rooms = await Task.Run(() => m_hotelsApi.GetRooms(hotel));
+
+            lock (m_rooms)
+            {
+                foreach (var room in rooms)
+                    m_rooms.Add(new HotelRoom(room, hotel));
+            }
+        }
+    }
 }
 

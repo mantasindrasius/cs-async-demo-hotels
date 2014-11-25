@@ -26,7 +26,6 @@ namespace Lib
             Action = () =>
             {
                 var timeStarted = DateTime.Now;
-                Thread.Sleep(GlobalRandom.Next(10000));
 
                 try
                 {
@@ -53,21 +52,54 @@ namespace Lib
 
     public class TaskManager
     {
-        private Collection<TaskDefinition> m_taskCollection;
+        private readonly Collection<TaskDefinition> m_taskCollection;
+        private readonly ToggleManager m_toggleManager;
 
-        public TaskManager(Collection<TaskDefinition> taskCollection)
+        public TaskManager(ToggleManager toggleManager,
+                           Collection<TaskDefinition> taskCollection)
         {
+            m_toggleManager = toggleManager;
             m_taskCollection = taskCollection;
+        }
+
+        public Task ContinueWithTask(Task task, string description, Action action)
+        {
+            var regAction = RegisterTaskDef(description, action);
+
+            return task.ContinueWith(t =>
+            {
+                System.Diagnostics.Debug.Print("Continue");
+
+                regAction();
+            });
+        }
+
+        public Task RunTask(string description, Action action)
+        {
+            var task = Task(description, action);
+            task.Start();
+
+            return task;
         }
 
         public Task Task(string description, Action action)
         {
-            var taskDef = new TaskDefinition(description, action);
-            var task = new Task(taskDef.Action);
+            return new Task(RegisterTaskDef(description, action));
+        }
+
+        private Action RegisterTaskDef(string description, Action action)
+        {
+            var fakeLatency = GlobalRandom.Next(m_toggleManager.EmulatedLatency);
+
+            var taskDef = new TaskDefinition(description, () =>
+            {
+                Thread.Sleep(fakeLatency);
+                action();
+            });
 
             m_taskCollection.Insert(0, taskDef);
 
-            return task;
+            return taskDef.Action;
         }
     }
 

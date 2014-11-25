@@ -29,161 +29,24 @@ namespace Lib
         private ICollection<Event> m_events;
 
         private readonly TaskManager m_taskManager;
+        private readonly ToggleManager m_toggleManager;
 
-        private readonly HotelsAPI m_hotelsApi = new HotelsAPI();
+        private readonly HotelsAPI m_hotelsApi;
         private readonly WeatherAPI m_weatherApi = new WeatherAPI();
         private readonly EventsAPI m_eventsApi = new EventsAPI();
-
-        public class SearchCompleteEventArgs : EventArgs
-        {
-            public int ExecutionTime { get; private set; }
-
-            public SearchCompleteEventArgs(int executionTime)
-                : base()
-            {
-                ExecutionTime = executionTime;
-            }
-        }
 
         public event EventHandler StartingSearch;
         public event EventHandler<SearchCompleteEventArgs> SearchComplete;
 
-        class SearchCommand
-        {
-            private readonly HotelsAPI m_hotelsApi;
-            private readonly WeatherAPI m_weatherApi;
-            private readonly EventsAPI m_eventsApi;
-            private readonly TaskManager m_taskManager;
-
-            private readonly ICollection<HotelRoom> m_rooms;
-            private readonly ICollection<WeatherRecord> m_weather;
-            private readonly ICollection<Event> m_events;
-            private readonly ICollection<Task> m_tasks = new List<Task>();
-            private DateTime m_startTime;
-
-            public event EventHandler<SearchCompleteEventArgs> Complete;
-
-            public SearchCommand(TaskManager taskManager,
-                                 HotelsAPI hotelsApi,
-                                 WeatherAPI weatherApi,
-                                 EventsAPI eventsApi,
-                                 ICollection<HotelRoom> rooms,
-                                 ICollection<WeatherRecord> weather,
-                                 ICollection<Event> events)
-            {
-                m_taskManager = taskManager;
-                m_hotelsApi = hotelsApi;
-                m_weatherApi = weatherApi;
-                m_eventsApi = eventsApi;
-                m_rooms = rooms;
-                m_weather = weather;
-                m_events = events;
-            }
-
-            public void Execute()
-            {
-                DoExecute();
-
-                Task.WaitAll(m_tasks.ToArray());
-            }
-
-            public Task ExecuteAsync()
-            {
-                return Task.Run(() => DoExecute());
-            }
-
-            private void DoExecute()
-            {
-                System.Diagnostics.Debug.Print("Search");
-
-                m_startTime = DateTime.Now;
-
-                var tasks = new Task[] {
-                    SearchAllRooms(),
-                    SearchWeather(),
-                    SearchEvents()
-                };
-
-                foreach (var task in tasks)
-                    task.Start();
-
-                Task.Factory.ContinueWhenAll(tasks, (completed) =>
-                {
-                    if (Complete != null)
-                    {
-                        var millis = Convert.ToInt16((DateTime.Now - m_startTime).TotalMilliseconds);
-
-                        Complete(this, new SearchCompleteEventArgs(millis));
-                    }
-
-                    System.Diagnostics.Debug.Print("Complete");
-                });
-            }
-
-            private Task SearchAllRooms()
-            {
-                return new Task(() =>
-                {
-                    var tasks = m_hotelsApi.GetHotels().Select(hotel => SearchHotelRooms(hotel)).ToArray();
-
-                    foreach (var task in tasks)
-                        task.Start();
-
-                    Task.WaitAll(tasks);
-                });
-            }
-
-            private Task SearchHotelRooms(Hotel hotel)
-            {
-                return NewTask("Search hotel rooms", () =>
-                {
-                    foreach (var room in m_hotelsApi.GetRooms(hotel.Id))
-                    {
-                        lock (m_rooms)
-                        {
-                            m_rooms.Add(new HotelRoom(room, hotel));
-                        }
-                    }
-                });
-            }
-
-            private Task SearchWeather()
-            {
-                return NewTask("Lookup weather info", () =>
-                {
-                    foreach (var room in m_weatherApi.GetForecast())
-                    {
-                        m_weather.Add(room);
-                    }
-                });
-            }
-
-            private Task SearchEvents()
-            {
-                return NewTask("Search local events", () =>
-                {
-                    foreach (var anEvent in m_eventsApi.GetEvents())
-                    {
-                        m_events.Add(anEvent);
-                    }
-                });
-            }
-
-            private Task NewTask(string description, Action action)
-            {
-                var task = m_taskManager.Task(description, action);
-                m_tasks.Add(task);
-
-                return task;
-            }
-        }
-
         public SearchManager(TaskManager taskManager,
+                             ToggleManager toggleManager,
                              ICollection<HotelRoom> rooms,
                              ICollection<WeatherRecord> weather,
                              ICollection<Event> events)
         {
             m_taskManager = taskManager;
+            m_toggleManager = toggleManager;
+            m_hotelsApi = new HotelsAPI(toggleManager);
             m_rooms = rooms;
             m_weather = weather;
             m_events = events;
@@ -194,7 +57,6 @@ namespace Lib
             set
             {
                 m_location = value;
-                Search();
             }
         }
 
@@ -203,7 +65,6 @@ namespace Lib
             set
             {
                 m_checkIn = value;
-                Search();
             }
         }
 
@@ -212,7 +73,6 @@ namespace Lib
             set
             {
                 m_checkOut = value;
-                Search();
             }
         }
 
@@ -228,11 +88,11 @@ namespace Lib
             return !(m_checkIn == null || m_checkOut == null || m_location == null);
         }
 
-        private void Search()
+        public async Task<bool> Search()
         {
             if (!CanSearch())
             {
-                return;
+                return false;
             }
 
             Clear();
@@ -242,6 +102,7 @@ namespace Lib
 
             var context = new SearchCommand(
                 m_taskManager,
+                m_toggleManager,
                 m_hotelsApi,
                 m_weatherApi,
                 m_eventsApi,
@@ -254,7 +115,12 @@ namespace Lib
                 if (SearchComplete != null) SearchComplete(this, e);
             };
 
-            context.ExecuteAsync();
+            if (m_toggleManager.AsyncOps)
+                await context.ExecuteAsync();
+            else
+                context.Execute();
+
+            return true;
         }
     }
 }

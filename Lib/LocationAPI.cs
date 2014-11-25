@@ -9,10 +9,10 @@ namespace Lib
 {
     public class Location
     {
-        public String Id { get; private set; }
-        public String Name { get; private set; }
+        public string Id { get; private set; }
+        public string Name { get; private set; }
 
-        public Location(String id, String name)
+        public Location(string id, string name)
         {
             Id = id;
             Name = name;
@@ -20,7 +20,7 @@ namespace Lib
 
         public override string ToString()
         {
-            return String.Format("Location({0}, {1})", Id, Name);
+            return string.Format("Location({0}, {1})", Id, Name);
         }
     }
 
@@ -45,22 +45,27 @@ namespace Lib
         };
 
         private readonly List<Location> locations = new List<Location>();
+        private ToggleManager m_toggleManager;
 
-        public LocationAPI()
+        public LocationAPI(ToggleManager toggleManager)
         {
             var i = 0;
 
+            m_toggleManager = toggleManager;
             locations = localities.Select(loc => new Location("loc" + (++i).ToString(), loc)).ToList();
         }
 
-        public MapPoint GetLocation(String address)
+        public MapPoint GetLocation(string address)
         {
             return service.GetLatLongFromAddress(address);
         }
 
-        public List<Location> GetAddressMatches(String addressText)
+        public List<Location> GetAddressMatches(string addressText)
         {
-            return locations.FindAll(s => s.Name.StartsWith(addressText));
+            return m_toggleManager.AddLatency(() =>
+            {
+                return locations.FindAll(s => s.Name.StartsWith(addressText));
+            });
         }
     }
 }

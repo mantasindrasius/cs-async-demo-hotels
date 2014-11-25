@@ -25,6 +25,7 @@
 		            Margin="10,10,0,0"
 		            VerticalAlignment="Top"
                     SelectedDateChanged="DatePicker_SelectedDateChanged"/>
+                <Button Click="Search_Click">Search</Button>
                 <TextBlock Name="ExecutionTime" />
             </WrapPanel>
             <WrapPanel>

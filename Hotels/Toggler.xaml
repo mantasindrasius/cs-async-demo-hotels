@@ -4,13 +4,15 @@
         Title="Toggler" Height="300" Width="300" WindowStyle="ToolWindow">
     <Grid>
         <StackPanel>
-            <CheckBox Content="Async operations" />
-            <CheckBox Content="Async search between hotels" />
-            <CheckBox Content="Async user action logging" />
+            <CheckBox Content="Async operations" IsChecked="{Binding Path=AsyncOps}" />
+            <CheckBox Content="Sequential operations" IsChecked="{Binding Path=SequentialOps}" />
+            <CheckBox Content="Async search between hotels" IsChecked="{Binding Path=AsyncSearchHotels}" IsEnabled="{Binding Path=AsyncOps}" />
+            <CheckBox Content="User action logging" IsChecked="{Binding Path=UserActionLogging}" />
+            <CheckBox Content="Sequential action logging"  IsChecked="{Binding Path=UserActionLoggingSequential}" IsEnabled="{Binding Path=UserActionLogging}" />
             <CheckBox Content="Wait operations to complete" />
             <WrapPanel>
                 <Label>Emulated latency (ms)</Label>
-                <TextBox Name="Latency" Width="100" KeyUp="Latency_KeyUp" Text="0" />
+                <TextBox Name="Latency" Width="100" KeyUp="Latency_KeyUp" Text="{Binding Path=EmulatedLatency}" />
             </WrapPanel>
         </StackPanel>
     </Grid>

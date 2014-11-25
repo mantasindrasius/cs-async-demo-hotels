@@ -42,6 +42,8 @@ namespace Hotels
         public Toggler(ToggleManager manager): this()
         {
             m_manager = manager;
+
+            DataContext = m_manager;
         }
 
         void Toggler_Loaded(object sender, RoutedEventArgs e)

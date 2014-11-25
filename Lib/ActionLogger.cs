@@ -9,15 +9,26 @@ namespace Lib
     public class ActionLogger
     {
         private readonly TaskManager m_taskManager;
+        private readonly ToggleManager m_toggleManager;
 
-        public ActionLogger(TaskManager taskManager)
+        private volatile Task lastTask;
+
+        public ActionLogger(TaskManager taskManager, ToggleManager toggleManager)
         {
             m_taskManager = taskManager;
+            m_toggleManager = toggleManager;
         }
 
         public void Log(string description)
         {
-            m_taskManager.Task(description, () => { }).Start();
+            if (!m_toggleManager.UserActionLogging)
+                return;
+
+            var task = m_toggleManager.UserActionLoggingSequential && lastTask != null ?
+                m_taskManager.ContinueWithTask(lastTask, description, () => { }) :
+                m_taskManager.RunTask(description, () => { });
+
+            lastTask = task;
         }
     }
 }
